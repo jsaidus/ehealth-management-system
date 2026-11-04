@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+import secrets
+
 
 DB_PATH = Path('ehealth.db')
 ROLES = ['Subscriber', 'Facility Admin', 'System Admin']
@@ -426,25 +428,44 @@ with st.sidebar:
                         except sqlite3.IntegrityError:
                             st.error('That phone number is already registered.')
 
-        if bootstrap_admin():
+        if bootstrap_admin() and bool(os.environ.get("ADMIN_SETUP_KEY") or st.secrets.get("ADMIN_SETUP_KEY")):
             with st.expander('First-time system setup'):
                 st.caption('Create the first System Admin. This option disappears after an admin exists.')
-                with st.form('bootstrap_admin'):
+                with st.form('bootstrap_admin'): 
+                    setup_key = st.text_input(
+                           'Administrator setup key', 
+                           type='password'
+                        )
                     a_name = st.text_input('Admin name')
                     a_phone = st.text_input('Admin phone')
-                    a_password = st.text_input('Admin password', type='password')
-                    if st.form_submit_button('Create System Admin'):
-                        if a_name and a_phone and len(a_password) >= 10:
-                            try:
-                                execute('INSERT INTO users (full_name,phone,password_hash,role,created_at) VALUES (?,?,?,?,?)',
-                                        (a_name.strip(),a_phone.strip(),hash_password(a_password),'System Admin',datetime.now().isoformat(timespec='seconds')))
-                                st.success('System Admin created. Log in above.')
-                                st.rerun()
-                            except sqlite3.IntegrityError:
-                                st.error('Phone number already exists.')
-                        else:
-                            st.error('Use a name, phone number, and password of at least 10 characters.')
+                    a_password = st.text_input(
+                          'Admin password', 
+                           type='password'
+                        )
+            if st.form_submit_button('Create System Admin'):
+                    if setup_key != (os.environ.get("ADMIN_SETUP_KEY") or st.secrets.get("ADMIN_SETUP_KEY")):
+                        st.error("Invalid administrator setup key.")
+                    elif a_name and a_phone and len(a_password) >= 10:
+                        try:
+                            execute(
+                                'INSERT INTO users (full_name,phone,password_hash,role,created_at) VALUES (?,?,?,?,?)',
+                                (
+                                    a_name.strip(),
+                                    a_phone.strip(),
+                                    hash_password(a_password),
+                                    'System Admin',
+                                    datetime.now().isoformat(timespec='seconds')
+                                )
+                            )
+                            st.success('System Admin created. Log in above.')
+                            st.rerun()
+                        except sqlite3.IntegrityError:
+                            st.error('Phone number already exists.')
+                    else:
+                        st.error('Use a name, phone number, and password of at least 10 characters.')
 
+                
+                            
 user = st.session_state.user
 subscriber = get_subscriber(user)
 role = user['role'] if user else 'Guest'
