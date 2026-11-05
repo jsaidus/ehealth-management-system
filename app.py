@@ -4,7 +4,7 @@ import hmac
 import os
 import secrets
 import sqlite3
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -53,8 +53,61 @@ def verify_password(password, stored):
 def init_db():
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.executescript('''
-                CREATE TABLE IF NOT EXISTS doctors (
+        cur.executescript('''CREATE TABLE IF NOT EXISTS subscribers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT NOT NULL,
+            phone TEXT NOT NULL UNIQUE, city TEXT NOT NULL, area TEXT,
+            emergency_contact TEXT, created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS facilities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, type TEXT NOT NULL,
+            city TEXT NOT NULL, area TEXT NOT NULL, address TEXT, phone TEXT,
+            latitude REAL, longitude REAL, opening_hours TEXT, created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS staff (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, facility_id INTEGER NOT NULL,
+            full_name TEXT NOT NULL, role TEXT NOT NULL, specialization TEXT, phone TEXT,
+            FOREIGN KEY(facility_id) REFERENCES facilities(id)
+        );
+        CREATE TABLE IF NOT EXISTS services (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, facility_id INTEGER NOT NULL,
+            service_name TEXT NOT NULL, description TEXT, available TEXT NOT NULL DEFAULT 'Yes',
+            FOREIGN KEY(facility_id) REFERENCES facilities(id)
+        );
+        CREATE TABLE IF NOT EXISTS medicines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, facility_id INTEGER NOT NULL,
+            medicine_name TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 0,
+            price REAL DEFAULT 0, available TEXT NOT NULL DEFAULT 'Yes',
+            FOREIGN KEY(facility_id) REFERENCES facilities(id)
+        );
+        CREATE TABLE IF NOT EXISTS appointments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, subscriber_id INTEGER NOT NULL,
+            facility_id INTEGER NOT NULL, appointment_date TEXT NOT NULL,
+            appointment_time TEXT NOT NULL, reason TEXT, status TEXT NOT NULL DEFAULT 'Pending',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(subscriber_id) REFERENCES subscribers(id),
+            FOREIGN KEY(facility_id) REFERENCES facilities(id)
+        );
+        CREATE TABLE IF NOT EXISTS health_readings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, subscriber_id INTEGER NOT NULL,
+            reading_type TEXT NOT NULL, systolic INTEGER, diastolic INTEGER,
+            sugar_level REAL, notes TEXT, created_at TEXT NOT NULL,
+            FOREIGN KEY(subscriber_id) REFERENCES subscribers(id)
+        );
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            full_name TEXT NOT NULL,
+            phone TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL CHECK(role IN ('Subscriber','Facility Admin','System Admin')),
+            subscriber_id INTEGER,
+            facility_id INTEGER,
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(subscriber_id) REFERENCES subscribers(id),
+            FOREIGN KEY(facility_id) REFERENCES facilities(id)
+        );
+
+CREATE TABLE IF NOT EXISTS doctors (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             facility_id INTEGER NOT NULL,
             full_name TEXT NOT NULL,
@@ -93,8 +146,7 @@ def init_db():
             FOREIGN KEY(facility_id) REFERENCES facilities(id),
 
             UNIQUE(doctor_id, appointment_date, appointment_time)
-        );
-        ''')
+        );''')
         conn.commit()
         seed_data(conn)
 
