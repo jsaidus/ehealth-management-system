@@ -494,7 +494,7 @@ with st.sidebar:
                           'Admin password', 
                            type='password'
                         )
-            if st.form_submit_button('Create System Admin'):
+                    submitted = st.form_submit_button('Create System Admin')
                     if setup_key != (os.environ.get("ADMIN_SETUP_KEY") or st.secrets.get("ADMIN_SETUP_KEY")):
                         st.error("Invalid administrator setup key.")
                     elif a_name and a_phone and len(a_password) >= 10:
